@@ -1,0 +1,33 @@
+# ALRIGHT, there's a new plan.
+# So at this point, I need to ask myself what I actually plan on doing now.
+# The reason I decided to do this programatically in the first place was becasue
+#   I was getting the feeling that at some point, this puzzle would require some
+#   amount of brute force in order to solve.
+# I mean, it might be possible to completely logic this thing out by hand without
+#   needing to brute force anything, but I got the disticnt impression that IF it
+#   was indeed possible, it would take me a lot of effort to figure out.
+# So hey, why not play to my strengths? I know how to code things, and computers
+#   are exceptionally good at brute-forcing things like this.
+# But I digress. At this point, there is one looming question:
+#
+#       What can I have the program figure out for me?
+#
+# Answer: I'm going to have it calculate all the possible ways to partition the
+#         values in the triangular sequence that meet the following criteria:
+#   1. The sums of all partitions are equal.
+#   2. The number of partitions is equal to the number of regions.
+#   3. Each partition corresponds to a different region in terms of the number
+#      of cells contained in the region.
+#
+# Here's what I plan on doing:
+# Given a set, R, which has the following qualities:
+#   1. |R| = # distinct regions
+#   2. Each element in R is an integer that represents the number of cells
+#      contained within a given region (the regions will be identified by their
+#      index in the array).
+# (I actually have a variable for this already, (region_data[:r_num_cells]) )
+#
+# Okay, so next question: How the do I actually make a method that does this?
+# Well, to answer that question, I should probably think about the axioms I know
+#   of, and the observations that I can derive from them.
+# ...or maybe I could just go for it...
