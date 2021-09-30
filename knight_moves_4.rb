@@ -73,7 +73,7 @@ def parse_moves_data(gd, gm)
   moves = Array.new(gm[:y]) {|e| e = Array.new(gm[:x], -1)}
   for i in gm[:m_start]..gm[:m_end] do
     cells = gd[i].strip.split(',')
-    for j in 0..gm[:x]-1 do
+    for j in 0...gm[:x] do
       moves[i-1-gm[:r_end]][j] = cells[j].to_i
       if cells[j].to_i > max_val
         max_val = cells[j].to_i
@@ -87,6 +87,26 @@ def parse_moves_data(gd, gm)
     moves: moves,     # 2D array representing positions of known cell values
     max_val: max_val  # highest known cell value provided in the input file
   }
+end
+
+# Relabels the regions such that they are in
+# def normalize_regions
+
+# Returns an array of length |rr| (the number of distinct regions).
+# Each entry in the array is another array containing integers which represent
+#   known values belonging to the region associated with the array's index.
+def construct_ms_per_r(gm, rd, md)
+  ms_per_r = Array.new(rd[:num_regions]) {|e| e = Array.new}
+  for y in 0...gm[:y] do
+    for x in 0...gm[:x] do
+      if md[:moves][y][x] != 0
+        r = rd[:regions][y][x]
+        ms_per_r[r].push(md[:moves][y][x])
+      end
+    end
+  end
+  puts "ms_per_r = " + ms_per_r.to_s
+  return ms_per_r
 end
 
 # Generate an array of possible total moves that would still allow for a solution
@@ -104,14 +124,11 @@ def determine_possible_num_moves(gm, rd, md)
   return poss_ms
 end
 
-# Returns an array of arrays of arrays.
-# This represents a list of all possible ways to split up the cell values such
-#   that they meet the criteria for a possible solution.
-# CHRIS -- So how brute-forcey do I want to make this thing?
-#          As little as possible, I guess, but where shall I settle...?
-
-# First thing we need to do is find just one possible partitioning for each
-#   given possible number of moves in poss_ms.
+# Return a possible partitioning of m sequential values among r regions such
+#   that the sum of all values in a region is equivalent to the sum of all
+#   values in any other region.
+# Should be noted that the method used below only works because we know we're
+#   dealing with a complete triangular number sequence up to m.
 def calc_root_partition(r, m)
   total_per_r = ((m * (m + 1)) / 2) / r
   root_partition = Array.new(m, -1)
@@ -130,28 +147,29 @@ def calc_root_partition(r, m)
   return root_partition
 end
 
-# This function will basically create and traverse a tree of possible partitions
-#   with the provided root_partition as the root. The tree doesn't really get
-#   persisted, but what does get persisted is every distinct node in the tree.
-# This is where things really start to get complicated...
-# Anyway, here's the basic outline for this function:
-# - Create r arrays,
-#   Each array will represent one region of the root partition.
-#   These arrays will contain integers representing the values in that region that
-#   contribute to the region's sum.
-# -
-
-def calc_poss_partitions(r_num_cells, m, root_partition)
-
+# Returns an array of arrays, where each array represents a unique, valid
+#   partition given r & m.
+# Could definitely be optimized. Currently, it is quite inefficient...
+# I should also mention that this thing has really really terrible big O.
+#   I mean, if this gets up to even 25 possible moves, it produces a downright
+#   absurd number of possible partitions.
+#   To remedy this, it might be a good idea to include more restrictions that
+#     prevent a new partition from being persisted. I'm specifically thinking
+#     about using r_num_cells.
+# This function essentially EXPANDS A NODE where each node is a valid partition.
+def calc_poss_partitions(root_partition, rd, md)
   root_partition = normalize_partition(root_partition)
   puts "\nroot_partition    = " + root_partition.to_s
-  r = r_num_cells.length
-
+  r = rd[:r_num_cells].length
   poss_partitions = Array.new
-  poss_partitions.push(root_partition)
+  if validate_partition(root_partition, rd, md)
+    poss_partitions.push(root_partition)
+  end
+  xxs = create_r_arrays_from_partition(rd[:r_num_cells], root_partition)
 
-  # Create r arrays
-  xxs = create_r_arrays_from_partition(r_num_cells, root_partition)
+  # CHRIS -- This needs adjusting.
+  #          It still isn't getting ALL possible partitions since it's only
+  #            swapping between two regions at a time.
 
   i_j_combinations = (0...xxs.length).to_a.combination(2).to_a
   i_j_combinations.each do |ij|
@@ -165,13 +183,9 @@ def calc_poss_partitions(r_num_cells, m, root_partition)
         #          it could be improved, but I just want a proof of concept for
         #          the time being, so maybe I'll come back and optimize later.
         if xx_i_sum == xx_j_sum
-          # puts "xx_i_combo = " + xx_i_combination.to_s
-          # puts "xx_j_combo = " + xx_j_combination.to_s
           new_partition = create_new_partition(root_partition, xx_i_combination, xx_j_combination)
-          # puts "new_partition  = " + new_partition.to_s
           new_partition = normalize_partition(new_partition)
-          # puts "new_partition  = " + new_partition.to_s
-          if not poss_partitions.include? new_partition
+          if (not poss_partitions.include? new_partition) and validate_partition(new_partition, rd, md)
             poss_partitions.push(new_partition)
             puts "poss_partition[" + (poss_partitions.length-1).to_s + "] = " + new_partition.to_s
           end
@@ -182,12 +196,15 @@ def calc_poss_partitions(r_num_cells, m, root_partition)
   return poss_partitions
 end
 
+# - Create r arrays,
+#   Each array will represent one region of the root_partition.
+#   These arrays will contain integers representing the values in that region that
+#   contribute to the region's sum.
 def create_r_arrays_from_partition(r_num_cells, root_partition)
   xxs = Array.new(r_num_cells.length) {|e| e = Array.new}
   for i in 1..root_partition.length
     xxs[root_partition[i-1]].push(i)
   end
-  # puts "xxs = " + xxs.to_s
   return xxs
 end
 
@@ -216,20 +233,67 @@ def normalize_partition(partition)
   return partition
 end
 
-# r_labels = []
-# r_num_cells = []
-# for i in gm[:r_start]..gm[:r_end] do
-#   cells = gd[i].strip.split(',')
-#   for j in 0..gm[:x]-1 do
-#     if not r_labels.include? cells[j]
-#       r_labels.push(cells[j])
-#       r_num_cells.push(0)
-#     end
-#     new_label = r_labels.find_index(cells[j])
-#     r_num_cells[new_label] += 1
-#     regions[i-2][j] = new_label.to_i
-#   end
-# end
+# Validate partition based on the following:
+#   1. r_num_cells
+#   2. moves (known cell values and their associated regions)
+def validate_partition(partition, rd, md)
+
+  # puts "Validating partition: " + partition.to_s + "..."
+
+  # Validate based on region data
+  r_num_cells_sorted = rd[:r_num_cells].sort
+  p_num_cells = Array.new(rd[:r_num_cells].length, 0)
+  for i in 0...partition.length do
+    p_num_cells[partition[i]] += 1
+  end
+  p_num_cells_sorted = p_num_cells.sort
+  # puts "r_num_cells_sorted = " + r_num_cells_sorted.to_s
+  # puts "p_num_cells_sorted = " + p_num_cells_sorted.to_s
+  for i in 0...p_num_cells_sorted.length do
+    if r_num_cells_sorted[i] < p_num_cells_sorted[i]
+      # puts "    Partition invalid: regions"
+      return false
+    end
+  end
+
+  # Validate based on moves data
+  xxs = create_r_arrays_from_partition(rd[:r_num_cells], partition)
+  ms_per_r = rd[:ms_per_r]
+  for r in 0...ms_per_r.length do
+    if ms_per_r[r].empty?
+      next
+    end
+    max_size = rd[:r_num_cells][r]
+    for i in 0...ms_per_r[r].length do
+      # puts "r = " + r.to_s + "    i = " + i.to_s
+      partition_r_containing_m = partition[ms_per_r[r][i]-1]
+      # puts "partition_r_containing_m = " + partition_r_containing_m.to_s
+      actual_size = xxs[partition_r_containing_m].length
+      if actual_size > max_size
+        # puts "    Partition invalid: moves"
+        return false
+      end
+    end
+  end
+  return true
+end
+
+# Validates whether or not a proposed partition conforms to the r_num_cells
+# Returns true if valid, false otherwise.
+def validate_partition_regions(partition, r_num_cells)
+  r_num_cells_sorted = r_num_cells.sort
+  p_num_cells = Array.new(r_num_cells.length, 0)
+  for i in 0...partition.length do
+    p_num_cells[partition[i]] += 1
+  end
+  p_num_cells_sorted = p_num_cells.sort
+  for i in 0...p_num_cells_sorted.length do
+    if r_num_cells_sorted[i] < p_num_cells_sorted[i]
+      return false
+    end
+  end
+  return true
+end
 
 # ——————————————————————————————————————————————————————————————————————————————
 
@@ -237,6 +301,7 @@ grid_data = read_input_file
 grid_metadata = parse_grid_metadata(grid_data)
 region_data = parse_region_data(grid_data, grid_metadata)
 moves_data = parse_moves_data(grid_data, grid_metadata)
+region_data[:ms_per_r] = construct_ms_per_r(grid_metadata, region_data, moves_data)
 moves_data[:poss_ms] = determine_possible_num_moves(grid_metadata, region_data, moves_data)
 
 root_partitions = []
@@ -248,6 +313,6 @@ end
 
 poss_partitions = []
 for i in 0...root_partitions.length do
-  poss_partitions.push(calc_poss_partitions(region_data[:r_num_cells], moves_data[:poss_ms][i], root_partitions[i]))
+  poss_partitions.push(calc_poss_partitions(root_partitions[i], region_data, moves_data))
 end
-puts "poss_partitions = " + poss_partitions.to_s
+# puts "poss_partitions = " + poss_partitions.to_s
