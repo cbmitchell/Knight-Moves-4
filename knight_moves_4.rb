@@ -89,17 +89,7 @@ def parse_moves_data(gd, gm)
   }
 end
 
-def go_for_it
-  grid_data = read_input_file
-  grid_metadata = parse_grid_metadata(grid_data)
-  region_data = parse_region_data(grid_data, grid_metadata)
-  moves_data = parse_moves_data(grid_data, grid_metadata)
-end
-
-# Okay, so now I finally have all the logic in place to actually start doing
-#   the part that I started this thing for in the first place.
-# So, how shall I go about this...
-
+# Generate an array of possible total moves that would still allow for a solution
 def determine_possible_num_moves(gm, rd, md)
   puts "Determining possible total moves..."
   min = md[:max_val]
@@ -114,8 +104,45 @@ def determine_possible_num_moves(gm, rd, md)
   return poss_ms
 end
 
+# Returns an array of arrays of arrays.
+# This represents a list of all possible ways to split up the cell values such
+#   that they meet the criteria for a possible solution.
+# CHRIS -- So how brute-forcey do I want to make this thing?
+#          As little as possible, I guess, but where shall I settle...?
+
+# First thing we need to do is find just one possible partitioning for each
+#   given possible number of moves in poss_ms.
+#
+def calc_root_partition(r, m)
+  total_per_r = ((m * (m + 1)) / 2) / r
+  puts "total_per_r = " + total_per_r.to_s
+  root_partition = Array.new(m, -1)
+  region_totals = Array.new(r, 0)
+  i = m
+  while i > 0 do
+    for j in 0..r-1 do
+      if (region_totals[j] + i <= total_per_r)
+        region_totals[j] += i
+        root_partition[i-1] = j
+        break
+      end
+    end
+    i = (i - 1)
+  end
+  return root_partition
+end
+
+def calc_poss_partitions(r_num_cells, poss_ms)
+
+end
+
 grid_data = read_input_file
 grid_metadata = parse_grid_metadata(grid_data)
 region_data = parse_region_data(grid_data, grid_metadata)
 moves_data = parse_moves_data(grid_data, grid_metadata)
 moves_data[:poss_ms] = determine_possible_num_moves(grid_metadata, region_data, moves_data)
+moves_data[:poss_ms].each do |m|
+  root_partition = calc_root_partition(region_data[:num_regions], m)
+  puts "Root partition for " + m.to_s + " moves: " + root_partition.to_s
+end
+# poss_partitions = calc_poss_partitions(region_data[:r_num_cells], moves_data[:poss_ms])
