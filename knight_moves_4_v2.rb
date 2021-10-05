@@ -1,5 +1,9 @@
 #!/usr/bin/ruby
 
+KNIGHT_MOVEMENT = [
+  [1, -2], [2, -1], [2, 1], [1, 2], [-1, 2], [-2, 1], [-2, -1], [-1, -2]
+]
+
 # Print out the board
 def print_board (board)
   board.each do |row|
@@ -153,57 +157,6 @@ def tri(m)
   tri_m = (m * (m + 1)) / 2
 end
 
-# ———— PSEUDOCODE ————
-# vm = 0
-# for v in V {
-#   if v is not already known {
-#     vm = v
-#   }
-# }
-#
-# ————————————————————
-#
-# for m in 1...num_m {
-#   if K[m-1] != nil {
-#     next
-#   }
-#   actual_sum = sums[r] + m
-#   if target_sum - actual_sum < (next-largest m) {
-#     next
-#   }
-#   if target_sum - actual_sum > tri(num_m) - tri(num_m - num_open_cells(r)) {
-#     next
-#   }
-#   poss_next_moves = (calc_poss_next_moves(m, K))
-#   for next_move in poss_next_moves {
-#     K_copy = copy(K)
-#     K_copy.add(next_move)
-#     RECUR()
-#   }
-# }
-#
-#
-# We want to pass a new version of K to the recursive function
-# We also want to pass the new m
-# We also want to pass the metadata stuff
-#
-# poss_move_helper(m, K, metadata) {
-#   if not validate_move(m, K, metadata) {
-#     return ???
-#   }
-#   solved = true
-#   for sum in sums {
-#     if sum != target_sum {
-#       solved = false
-#       break
-#     }
-#   }
-#   if solved == true {
-#     return ???
-#   }
-#
-# }
-#
 # ———————————————————— # ———————————————————— # ————————————————————
 # ———————————————————— # ———— PSEUDOCODE ———— # ————————————————————
 # ———————————————————— # ———————————————————— # ————————————————————
@@ -285,8 +238,6 @@ end
 # ———————————————————— # ———————————————————— # ————————————————————
 
 def validate_state(s)
-  # target_sum = tri(s[:num_moves]) / s[:r_num_cells].length
-  # r = s[:regions][s[:prospective_move[s[:y]]]][s[:prospective_move[s[:x]]]]
   r_known_cells = s[:r_known_cells][s[:prospective_move][:r]]
   r_num_cells = s[:r_num_cells][s[:prospective_move][:r]]
   actual_sum = r_known_cells.inject(0, :+)
@@ -294,10 +245,6 @@ def validate_state(s)
   if difference < s[:next_highest_unknown_m]
     return false # r is overfilled
   end
-  # sum_of_greater_unknown_ms = 0
-  # for i in 0...( r_num_cells - s[:known_moves][s[:prospective_move][:r]].length ) do #this range operator might break !!!***
-  #   sum_of_greater_unknown_ms += s[:unknown_moves][i] # Pretty sure this will never go out of bounds...
-  # end
   if difference > s[:sum_of_greater_unknown_ms]
     return false # r is underfilled
   end
@@ -350,22 +297,62 @@ def derive_state_metadata(s)
   s[:sum_of_greater_unknown_ms] = sum_of_greater_unknown_ms
 end
 
-def apply_move(s)
+# Modifies relevant state variables based on the state's current :prospective_move.
+#   - Places the current :m in its designated position within the :moves array
+#   - Adds current :m to the list of :r_known_cells
+#   - Adds {:x, :y} from :prospective_move to the :known_moves array at index :m
+#   - Removes :m from the :unknown_moves array
+#   - Increments :m
+# Returns nothing as it is directly modifiying the state metadata object.
+# Also, I can probably get rid of the bullet-pointed list above, as it kindof    ***
+#   just restates stuff that you can easily tell by just looking at the function...
+def apply_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
   s[:moves][s[:prospective_move][:y]][s[:prospective_move][:x]] = s[:m]
   s[:r_known_cells][s[:prospective_move][:r]].push(s[:m])
   s[:known_moves][s[:m]][:x] = s[:prospective_move][:x]
   s[:known_moves][s[:m]][:y] = s[:prospective_move][:y]
-  s[:unknown_moves] = s[:unknown_moves] - [m]
+  s[:unknown_moves] = s[:unknown_moves] - [s[:m]]
+  s[:m] = s[:m] + 1 # Not ENTIRELY sure about this, but we'll see how it goes...
   derive_state_metadata(s)
 end
 
-def undo_move(s)
+# Inverse of the apply_move(s) method defined above.
+# That is, if this method is invoked immediately after apply_move, then the
+#   state metadata object (s) should be identical to how it was before apply_move.
+def undo_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
+  s[:m] = s[:m] - 1 # Not ENTIRELY sure about this, but we'll see how it goes...
   s[:moves][s[:prospective_move][:y]][s[:prospective_move][:x]] = 0
   s[:r_known_cells][s[:prospective_move][:r]].pop()
   s[:known_moves][s[:m]][:x] = -1
   s[:known_moves][s[:m]][:y] = -1
   s[:unknown_moves] = s[:unknown_moves].push(m).sort.reverse()
   derive_state_metadata(s)
+end
+
+# Well, everything else is theoretically in place. Now I just need to
+#   program a solution to the regular version of the Knight's Tour.
+# How hard could that possibly be...?
+# Anyway...
+
+# Returns a 2D array of possible knight moves from the move specified by the
+#   prospective_move object contained in the state metadata
+def get_adjacent_cells(s)
+  adjacent_cells = []
+  x_max = s[:moves][0].length
+  y_max = s[:moves].length
+  xi = s[:prospective_move][:x]
+  yi = s[:prospective_move][:y]
+  KNIGHT_MOVEMENT.each do |move|
+    x_new = xi + move[0]
+    y_new = yi + move[1]
+    if (x_new >= 0) && (x_new <= x_max) && (y_new >= 0) && (y_new <= y_max)
+      adjacent_cells.push([x_new, y_new])
+    end
+  end
+end
+
+def get_poss_moves_from_prev()
+
 end
 
 def recursive_function(s)
@@ -376,81 +363,24 @@ def recursive_function(s)
     s[:solved] = true
     return s
   end
-
-  derive_state_metadata(s)
+  # derive_state_metadata(s)
   m = s[:m]
   next_lowest_known_m = s[:m] - 1
   poss_moves_from_prev = get_poss_moves_from_prev(s) #!!!
   poss_moves_from_next = get_poss_moves_from_next(s) #!!!
   poss_moves = poss_moves_from_prev & poss_moves_from_next
   while not poss_moves.empty?
-    prospective_move = poss_moves.shift()
-    apply_move(prospective_move, s) #!!!
+    s[:prospective_move] = poss_moves.shift()
+    apply_move(s)
     next_state = recursive_function(s)
     if next_state[:solved]
       return next_state
     end
-    undo_move(prospective_move, s) #!!!
+    undo_move(s)
   end
   return s
 end
 
-#
-# }
-#
-# Q.push(root_p)
-# while !Q.empty? {
-#   p = Q.shift()
-#   if unique(p) {
-#     U.push(p)
-#     N = get_neighbors(p)
-#     for n in N {
-#       Q.push(n)
-#     }
-#     if valid(p) {
-#       V.push(p)
-#     }
-#   }
-# }
-
-# validation_metadata = {
-#   m: ,
-#   moves: ,
-#   known_moves: ,
-#   r_num_cells: ,
-#   sums ,
-# }
-
-# Returns true if valid, false if invalid
-def validate_move(vm)
-  # Move is already known
-  return false if not vm[:known_moves][vm-1].nil?
-
-  target_sum = tri(vm[:known_moves].length) / vm[:r_num_cells].length
-  # Region has been overfilled
-  return false if
-
-  # Region has been underfilled
-end
-
-
-
-# ———— PSEUDOCODE ————
-# Q.push(root_p)
-# while !Q.empty? {
-#   p = Q.shift()
-#   if unique(p) {
-#     U.push(p)
-#     N = get_neighbors(p)
-#     for n in N {
-#       Q.push(n)
-#     }
-#     if valid(p) {
-#       V.push(p)
-#     }
-#   }
-# }
-#
 # It should be noted that this function only calculates all possible partitions
 #   of the same length as the provided root_partition.
 #
@@ -492,8 +422,6 @@ def calc_all_poss_partitions(root_partition, rd, md)
   # puts "calc_all_poss_partitions resulted in " + valid_ps.length.to_s + " partitions."
   return valid_ps
 end
-
-
 
 # Returns an array of arrays, where each array represents a unique, valid
 #   partition given r & m.
