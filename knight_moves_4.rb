@@ -89,9 +89,6 @@ def parse_moves_data(gd, gm)
   }
 end
 
-# Relabels the regions such that they are in
-# def normalize_regions
-
 # Returns an array of length |rr| (the number of distinct regions).
 # Each entry in the array is another array containing integers which represent
 #   known values belonging to the region associated with the array's index.
@@ -110,6 +107,10 @@ def construct_ms_per_r(gm, rd, md)
 end
 
 # Generate an array of possible total moves that would still allow for a solution
+#
+# APPARENTLY, this doesn't always work. It can result in false positives. !!!
+# m = 11, r = 4 is a counterexample in which the sum per region comes out to 16.5,
+#   although this method returns 16 because integers I'm assuming...
 def determine_possible_num_moves(gm, rd, md)
   puts "Determining possible total moves..."
   min = [ md[:max_val], rd[:num_regions] * 2 - 1 ].max
@@ -147,29 +148,84 @@ def calc_root_partition(r, m)
   return root_partition
 end
 
+# ———— PSEUDOCODE ————
+# Q.push(root_p)
+# while !Q.empty? {
+#   p = Q.shift()
+#   if unique(p) {
+#     U.push(p)
+#     N = get_neighbors(p)
+#     for n in N {
+#       Q.push(n)
+#     }
+#     if valid(p) {
+#       V.push(p)
+#     }
+#   }
+# }
+#
+# It should be noted that this function only calculates all possible partitions
+#   of the same length as the provided root_partition.
+#
+# Well, I just tried running this on a 5x5 example, and it took WAY too long.
+# As a matter of fact, I got impatient and stopped it before it finished.
+# Anyway, my point is that we need to figure out a way to decrease the time
+#   complexity on this beast or we're boned. As it currently is, the thing just
+#   takes FAR too long to run...
+# So it would stand to reason that I can decrease the complexity of this thing
+#   by introducing more insight I have about the nature of the problem and its solutions.
+#   This includes the following:
+#     -
+def calc_all_poss_partitions(root_partition, rd, md)
+  # puts "\nCalculating all possible partitions of length " + root_partition.length.to_s
+  root_p = normalize_partition(root_partition)
+  unvisited_ps = [root_p]
+  unique_ps = []
+  valid_ps = []
+  while not unvisited_ps.empty? do
+    p = unvisited_ps.shift
+    # puts "Visiting partition  " + p.to_s + "... "
+    if not unique_ps.include?(p)
+      unique_ps.push(p)
+      # puts p.to_s + " is unique - Now expanding... "
+      # NOTE: It might be a bit cleaner to have a function that gets all
+      #   neighboring partitions, and then have that be SEPARATE from
+      #   the function that validates them. Still, this would result in
+      #   an absolutely massive neighboring_ps for larger examples, and
+      #   that would be bad in terms of space and time...
+      neighboring_ps = calc_poss_partitions(p, rd, md)
+      neighboring_ps.each do |n|
+        unvisited_ps.push(n)
+      end
+      if validate_partition(p, rd, md)
+        valid_ps.push(p)
+      end
+    end
+  end
+  # puts "calc_all_poss_partitions resulted in " + valid_ps.length.to_s + " partitions."
+  return valid_ps
+end
+
 # Returns an array of arrays, where each array represents a unique, valid
 #   partition given r & m.
+# This array of partitions is not comprehensive. All the partitions in the array
+#   are only one step removed from the provided root_partition, where a "step"
+#   is defined as a swapping of summands between only two regions such that the
+#   regions retain their original sums.
 # Could definitely be optimized. Currently, it is quite inefficient...
 # I should also mention that this thing has really really terrible big O.
 #   I mean, if this gets up to even 25 possible moves, it produces a downright
 #   absurd number of possible partitions.
-#   To remedy this, it might be a good idea to include more restrictions that
-#     prevent a new partition from being persisted. I'm specifically thinking
-#     about using r_num_cells.
-# This function essentially EXPANDS A NODE where each node is a valid partition.
+# This function essentially EXPANDS A NODE where each node is a unique partition.
+# To the above point, this function is used to create a tree of nodes from inside
+#   the calc_all_poss_partitions(...) method above.
 def calc_poss_partitions(root_partition, rd, md)
   root_partition = normalize_partition(root_partition)
-  puts "\nroot_partition    = " + root_partition.to_s
+  # puts "root_partition    = " + root_partition.to_s
   r = rd[:r_num_cells].length
   poss_partitions = Array.new
-  if validate_partition(root_partition, rd, md)
-    poss_partitions.push(root_partition)
-  end
+  # poss_partitions.push(root_partition)
   xxs = create_r_arrays_from_partition(rd[:r_num_cells], root_partition)
-
-  # CHRIS -- This needs adjusting.
-  #          It still isn't getting ALL possible partitions since it's only
-  #            swapping between two regions at a time.
 
   i_j_combinations = (0...xxs.length).to_a.combination(2).to_a
   i_j_combinations.each do |ij|
@@ -179,15 +235,21 @@ def calc_poss_partitions(root_partition, rd, md)
       xx_i_sum = xx_i_combination.inject(0, :+)
       xx_j_combinations.each do |xx_j_combination|
         xx_j_sum = xx_j_combination.inject(0, :+)
-        # CHRIS -- This part is horribly inefficient. I already know some ways
-        #          it could be improved, but I just want a proof of concept for
-        #          the time being, so maybe I'll come back and optimize later.
+        # This part is horribly inefficient. I already know some ways
+        #   it could be improved, but I just want a proof of concept for
+        #   the time being, so maybe I'll come back and optimize later.
         if xx_i_sum == xx_j_sum
           new_partition = create_new_partition(root_partition, xx_i_combination, xx_j_combination)
           new_partition = normalize_partition(new_partition)
-          if (not poss_partitions.include? new_partition) and validate_partition(new_partition, rd, md)
+          # Originally, I had this part cut down the number of partitions it returned by
+          #   making it only return VALID partitions. Now that I'm essentially using this
+          #   as a method of EXPANDING from a given partition, I should allow it to return
+          #   invalid partitions, as they could still have valid children which would not
+          #   be reachable otherwise.
+          # if (not poss_partitions.include? new_partition) and validate_partition(new_partition, rd, md)
+          if not poss_partitions.include? new_partition
             poss_partitions.push(new_partition)
-            puts "poss_partition[" + (poss_partitions.length-1).to_s + "] = " + new_partition.to_s
+            # puts "poss_partition[" + (poss_partitions.length-1).to_s + "] = " + new_partition.to_s
           end
         end
       end
@@ -238,8 +300,6 @@ end
 #   2. moves (known cell values and their associated regions)
 def validate_partition(partition, rd, md)
 
-  # puts "Validating partition: " + partition.to_s + "..."
-
   # Validate based on region data
   r_num_cells_sorted = rd[:r_num_cells].sort
   p_num_cells = Array.new(rd[:r_num_cells].length, 0)
@@ -247,11 +307,8 @@ def validate_partition(partition, rd, md)
     p_num_cells[partition[i]] += 1
   end
   p_num_cells_sorted = p_num_cells.sort
-  # puts "r_num_cells_sorted = " + r_num_cells_sorted.to_s
-  # puts "p_num_cells_sorted = " + p_num_cells_sorted.to_s
   for i in 0...p_num_cells_sorted.length do
     if r_num_cells_sorted[i] < p_num_cells_sorted[i]
-      # puts "    Partition invalid: regions"
       return false
     end
   end
@@ -260,17 +317,12 @@ def validate_partition(partition, rd, md)
   xxs = create_r_arrays_from_partition(rd[:r_num_cells], partition)
   ms_per_r = rd[:ms_per_r]
   for r in 0...ms_per_r.length do
-    if ms_per_r[r].empty?
-      next
-    end
+    next if ms_per_r[r].empty?
     max_size = rd[:r_num_cells][r]
     for i in 0...ms_per_r[r].length do
-      # puts "r = " + r.to_s + "    i = " + i.to_s
       partition_r_containing_m = partition[ms_per_r[r][i]-1]
-      # puts "partition_r_containing_m = " + partition_r_containing_m.to_s
       actual_size = xxs[partition_r_containing_m].length
       if actual_size > max_size
-        # puts "    Partition invalid: moves"
         return false
       end
     end
@@ -311,8 +363,11 @@ moves_data[:poss_ms].each do |m|
   root_partitions.push(root_partition)
 end
 
-poss_partitions = []
+all_poss_partitions = []
 for i in 0...root_partitions.length do
-  poss_partitions.push(calc_poss_partitions(root_partitions[i], region_data, moves_data))
+  all_poss_partitions.push(calc_all_poss_partitions(root_partitions[i], region_data, moves_data))
 end
-# puts "poss_partitions = " + poss_partitions.to_s
+puts "\nall_poss_partitions = "
+all_poss_partitions.each do |m_poss_partitions|
+  print_board(m_poss_partitions)
+end
