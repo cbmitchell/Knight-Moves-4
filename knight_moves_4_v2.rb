@@ -172,7 +172,7 @@ end
 #     - Based on poss_ms from elsewhere in this file
 #
 #   known_moves: ,
-#     - A 2D (?) array in which each element is a two-key array with the keys :x & :y.
+#     - An array in which each element is a two-key object of the form, {:x, :y}.
 #     - Each element is initialized to {x: -1, y: -1}
 #     - An element is assigned another value when the move associated with that
 #       element's index becomes known.
@@ -297,15 +297,31 @@ def derive_state_metadata(s)
   s[:sum_of_greater_unknown_ms] = sum_of_greater_unknown_ms
 end
 
+# CHRIS -- Okay, so I just realized that this whole apply_move undo_move thing
+#   isn't going to work unless I retain a history of past states.
+# I mean, these would kindof work, but only for going back ONE step.
+# Anything beyond that wouldn't actually work.
+# So yeah, I'm going to need to implement a way to retain state history...
+# Okay, wait, so doing state history would require me to do a deep copy of the
+#   state, which is the whole reason I used this stupid apply/undo system - to
+#   avoid needing to figure out how to do a deep copy.
+# Wait, I have an idea. I can still use the apply/undo system, but I'll retain
+#   a list of :prospective_moves that will serve as deltas. It's kindof like how
+#   git doesn't actually save a copy of the state of a repo at every point
+#   throughout its history but instead uses deltas combined with the current ver.
+# Actually, I probably don't even need to do that. Given how I'm doing this, I
+#   can always assume that the last move made was the next-lowest m value, which
+#   can be used to completely derive everything else. TODO ***
+#
+# Separate note from the above:
+# I may also consider splitting up my state metadata object into two different objects:
+#   * state_data
+#     * Contains the minimum set of data required to derive everything else.
+#   * state_metadata
+#     * Contains all the values derived from values contained in state_data.
+
 # Modifies relevant state variables based on the state's current :prospective_move.
-#   - Places the current :m in its designated position within the :moves array
-#   - Adds current :m to the list of :r_known_cells
-#   - Adds {:x, :y} from :prospective_move to the :known_moves array at index :m
-#   - Removes :m from the :unknown_moves array
-#   - Increments :m
 # Returns nothing as it is directly modifiying the state metadata object.
-# Also, I can probably get rid of the bullet-pointed list above, as it kindof    ***
-#   just restates stuff that you can easily tell by just looking at the function...
 def apply_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
   s[:moves][s[:prospective_move][:y]][s[:prospective_move][:x]] = s[:m]
   s[:r_known_cells][s[:prospective_move][:r]].push(s[:m])
@@ -317,14 +333,13 @@ def apply_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
 end
 
 # Inverse of the apply_move(s) method defined above.
-# That is, if this method is invoked immediately after apply_move, then the
-#   state metadata object (s) should be identical to how it was before apply_move.
 def undo_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
-  s[:m] = s[:m] - 1 # Not ENTIRELY sure about this, but we'll see how it goes...
-  s[:moves][s[:prospective_move][:y]][s[:prospective_move][:x]] = 0
-  s[:r_known_cells][s[:prospective_move][:r]].pop()
-  s[:known_moves][s[:m]][:x] = -1
-  s[:known_moves][s[:m]][:y] = -1
+  s[:m] = s[:m] - 1
+  xy = s[:known_moves][s[:m]-1]
+  s[:known_moves][s[:m]-1] = {x: -1, y: -1}
+  r = regions[xy[:y]][xy[:x]]
+  s[:moves][xy[:y]][xy[:x]] = 0
+  s[:r_known_cells][r].pop()
   s[:unknown_moves] = s[:unknown_moves].push(m).sort.reverse()
   derive_state_metadata(s)
 end
@@ -334,23 +349,28 @@ end
 # How hard could that possibly be...?
 # Anyway...
 
-# Returns a 2D array of possible knight moves from the move specified by the
-#   prospective_move object contained in the state metadata
-def get_adjacent_cells(s)
+# Returns an array of {:x, :y} objects which represent open positions on the board
+#   that are one knight move away from the position of move m.
+# If m is not already known, then this function will return an empty array.
+def get_adjacent_cells(m, s)
   adjacent_cells = []
   x_max = s[:moves][0].length
   y_max = s[:moves].length
-  xi = s[:prospective_move][:x]
+  xi = s[][:x]
   yi = s[:prospective_move][:y]
   KNIGHT_MOVEMENT.each do |move|
     x_new = xi + move[0]
     y_new = yi + move[1]
-    if (x_new >= 0) && (x_new <= x_max) && (y_new >= 0) && (y_new <= y_max)
-      adjacent_cells.push([x_new, y_new])
+    if (x_new >= 0) && (x_new <= x_max) && (y_new >= 0) && (y_new <= y_max) # Cell is in bounds
+      if s[:moves][y_new][x_new] == 0                                       # Cell is available
+        adjacent_cells.push({x: x_new, y: y_new})
+      end
     end
   end
 end
 
+# Returns an array of {:x, :y} objects which represent possible knight moves from the
+#   position specified by the :prospective_move object contained in the state metadata
 def get_poss_moves_from_prev()
 
 end
