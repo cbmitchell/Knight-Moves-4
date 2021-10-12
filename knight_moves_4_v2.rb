@@ -538,6 +538,7 @@ def recursive_function(s)
   while not poss_moves.empty?
     puts "poss_moves: " + poss_moves.to_s
     s[:prospective_move] = poss_moves.shift()
+    s[:prospective_move][:r] = s[:regions][s[:prospective_move][:y]][s[:prospective_move][:x]]
     apply_move(s)
     next_state = recursive_function(s)
     if next_state[:solved]
