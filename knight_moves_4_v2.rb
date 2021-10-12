@@ -13,7 +13,6 @@ end
 
 def print_state_data(s)
   puts "m: " + s[:m].to_s
-  # puts "r: " + s[:r].to_s
   puts "moves: "
   print_board(s[:moves]).to_s
   puts "num_moves: " + s[:num_moves].to_s
@@ -28,7 +27,6 @@ def print_state_data(s)
   puts "r_free_cells: " + s[:r_free_cells].to_s
   puts "r_known_cells: " + s[:r_known_cells].to_s
   puts "target_sum: " + s[:target_sum].to_s
-  # puts "sum_of_greater_unknown_ms: " + s[:sum_of_greater_unknown_ms].to_s
   puts "prospective_move: " + s[:prospective_move].to_s
   puts "solved: " + s[:solved].to_s
 end
@@ -96,10 +94,6 @@ def parse_moves_data(gd, gm)
   puts "Parsing moves data..."
   max_val = 0
   moves = Array.new(gm[:y]) {|e| e = Array.new(gm[:x], -1)}
-  # In theory, I should be doing this known_moves thing in a later function
-  #   since it's technically derived. But for now this is simpler. I can try
-  #   refactoring that later when I'm not trying to balance a ton of things in
-  #   my head all at once...
   known_moves = Array.new(gm[:x] * gm[:y]) {|e| e = {x: -1, y: -1}}
   given_moves = []
   for i in gm[:m_start]..gm[:m_end] do
@@ -300,9 +294,7 @@ def derive_moves_metadata(s)
   end
   # I'm really bothered by this part, but as stated up top, this is being done
   #   for the sake of simplicity for now, and will be refactored later...
-  # r_known_cells = Array.new(s[:r_num_cells].length, [])
   r_known_cells = Array.new(s[:r_num_cells].length) {|e| e = Array.new()}
-  # r_free_cells = Array.new(s[:r_num_cells].length, 0)
   r_free_cells = s[:r_num_cells].clone
   for i in 0...known_moves.length do
     next if known_moves[i][:x] == -1
@@ -328,9 +320,6 @@ end
 
 def validate_state(s)
   puts "Validating state..."
-  # Pretty sure the way I'm currently doing this, I'm not applying the prospective_move
-  #   before validation the first time around, so this might not be good... !!!***
-  # print_state_data(s)
   r = s[:prospective_move][:r]
   actual_sum = s[:r_known_cells][r].inject(0, :+)
   difference = s[:target_sum] - actual_sum
@@ -371,49 +360,16 @@ def check_solved(s)
   return true
 end
 
-def derive_state_metadata(s)
-  r = s[:regions][s[:prospective_move][:y]][s[:prospective_move][:x]]
-  target_sum = tri(s[:num_moves]) / s[:r_num_cells].length
-  next_highest_known_m = 0
-  for i in s[:m]...s[:known_moves].length do
-    if s[:known_moves][i][:x] != -1
-      # TODO: this part is throwing out really high values for some reason.
-      next_highest_known_m = i + 1
-      break
-    end
-  end
-  next_highest_unknown_m = 0
-  i = s[:unknown_moves].length - 1
-  while i >= 0
-    if s[:unknown_moves][i] > s[:m]
-      next_highest_known_m = s[:unknown_moves][i]
-      break
-    end
-    i -= 1
-  end
-  sum_of_greater_unknown_ms = 0
-  for i in 0...( s[:r_num_cells][r] - s[:known_moves][r].length ) do #this range operator might break !!!***
-    sum_of_greater_unknown_ms += s[:unknown_moves][i] # Pretty sure this will never go out of bounds...
-  end
-  s[:prospective_move][:r] = r
-  s[:target_sum] = target_sum
-  s[:next_highest_known_m] = next_highest_known_m
-  s[:next_highest_unknown_m] = next_highest_unknown_m
-  s[:sum_of_greater_unknown_ms] = sum_of_greater_unknown_ms
-end
-
 # Modifies relevant state variables based on the state's current :prospective_move.
 # Returns nothing as it is directly modifiying the state metadata object.
-def apply_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
+def apply_move(s)
   puts "\nApplying move..."
   s[:moves][s[:prospective_move][:y]][s[:prospective_move][:x]] = s[:m]
-  # print_state_data(s)
   derive_moves_metadata(s)
-  # print_state_data(s)
 end
 
 # Inverse of the apply_move(s) method defined above.
-def undo_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
+def undo_move(s)
   puts "\nUndoing move..."
   s[:m] = s[:m] - 1
   while s[:given_moves].include? s[:m] do # Make sure we're not undoing a given move
@@ -421,16 +377,13 @@ def undo_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
   end
   xy = s[:known_moves][s[:m]-1]
   s[:moves][xy[:y]][xy[:x]] = 0
-  # print_state_data(s)
   derive_moves_metadata(s)
-  # print_state_data(s)
 end
 
 # Returns an array of {:x, :y} objects which represent open positions on the board
 #   that are one knight move away from the position of move m.
 # If m is not already known, then this function will return an empty array.
 def get_adjacent_cells(xi, yi, s)
-  # puts "xi = " + xi.to_s + "      yi = " + yi.to_s
   adjacent_cells = []
   x_max = s[:moves][0].length
   y_max = s[:moves].length
@@ -438,13 +391,11 @@ def get_adjacent_cells(xi, yi, s)
     x_new = xi + move[0]
     y_new = yi + move[1]
     if (x_new >= 0) && (x_new < x_max) && (y_new >= 0) && (y_new < y_max) # Cell is in bounds
-      # puts "x_new = " + x_new.to_s + "     y_new = " + y_new.to_s
-      if s[:moves][y_new][x_new] == 0                                       # Cell is available
+      if s[:moves][y_new][x_new] == 0                                     # Cell is available
         adjacent_cells.push({x: x_new, y: y_new})
       end
     end
   end
-  # puts "adjacent_cells: " + adjacent_cells.to_s
   return adjacent_cells
 end
 
@@ -487,8 +438,6 @@ end
 def get_poss_next_moves(s)
   next_highest_known_m = 0
   for i in s[:m]...s[:known_moves].length do
-    # puts "i = " + i.to_s
-    # puts s[:known_moves][i]
     if s[:known_moves][i][:x] != -1
       next_highest_known_m = i + 1
       break
@@ -502,8 +451,6 @@ def get_poss_next_moves(s)
     next_lowest_known_m = s[:m] - 1
     poss_moves_from_prev = get_poss_moves_from_prev(s)
     poss_moves_from_next = get_poss_moves_from_next(s)
-    # puts "poss_moves_from_prev: " + poss_moves_from_prev.to_s
-    # puts "poss_moves_from_next: " + poss_moves_from_next.to_s
     if not poss_moves_from_next.empty?
       if not poss_moves_from_prev.empty?
         poss_moves = poss_moves_from_prev & poss_moves_from_next
@@ -519,7 +466,7 @@ end
 
 # Recursive function that ultimately returns a solved version of the state.
 # TODO: Needs to be renamed.
-def recursive_function(s)
+def recursive_function(solutions, s)
   puts "BEGINNING RECURSIVE FUNCTION"
   print_board s[:moves]
   if not validate_state(s)
@@ -528,7 +475,7 @@ def recursive_function(s)
   if check_solved(s)
     s[:solved] = true
     puts "A solution has been found."
-    return s
+    solutions.push(deep_copy_solution(s[:moves]))
   end
   derive_moves_metadata(s) # CHRIS -- Not so sure about this...
   poss_moves = get_poss_next_moves(s)
@@ -537,13 +484,21 @@ def recursive_function(s)
     s[:prospective_move] = poss_moves.shift()
     s[:prospective_move][:r] = s[:regions][s[:prospective_move][:y]][s[:prospective_move][:x]]
     apply_move(s)
-    next_state = recursive_function(s)
+    next_state = recursive_function(solutions, s)
     if next_state[:solved]
       return next_state
     end
     undo_move(s)
   end
   return s
+end
+
+def deep_copy_solution(moves)
+  solution = []
+  moves.each do |row|
+    solution.push(row.clone)
+  end
+  return solution
 end
 
 def initialize_state_data(rd, md)
@@ -591,25 +546,24 @@ puts "\nposs_moves: " + poss_moves.to_s
 #   derive_moves_metadata(state_data)
 #   recursive_function(state_data)
 # end
-
 solutions = []
+initial_moves = deep_copy_solution(state_data[:moves])
 moves_data[:poss_ms].each do |poss_max_m|
   state_data[:num_moves] = poss_max_m
   puts "\n\nNew poss_max_m = " + poss_max_m.to_s
   poss_moves.each do |poss_move|
+    state_data[:moves] = deep_copy_solution(initial_moves)
+    state_data[:num_moves] = poss_max_m
     state_data[:prospective_move][:x] = poss_move[:x]
     state_data[:prospective_move][:y] = poss_move[:y]
-    state_data[:prospective_move][:r] = state_data[:regions][state_data[:prospective_move][:y]][state_data[:prospective_move][:x]]
+    state_data[:prospective_move][:r] = state_data[:regions][poss_move[:y]][poss_move[:x]]
     state_data[:target_sum] = tri(state_data[:num_moves]) / state_data[:r_num_cells].length
-    # print_state_data(state_data)
-    # puts "\nderiving state metadata..."
     derive_moves_metadata(state_data)
-    # print_state_data(state_data)
-    recursive_function(state_data)
-    if state_data[:solved]
-      # CHRIS -- This will probably require a deep copy, actually...
-      solutions.push(state_data[:moves])
-    end
+    recursive_function(solutions, state_data)
+    # if state_data[:solved]
+    #   # CHRIS -- This will probably require a deep copy, actually...
+    #   deep_copy_solution(solutions, state_data[:moves])
+    # end
   end
 end
 i = 1
