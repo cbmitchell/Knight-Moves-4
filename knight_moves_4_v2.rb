@@ -285,7 +285,7 @@ def derive_moves_metadata(s)
   end
   next_highest_unknown_m = -1
   unknown_moves.each do |unknown_move|
-    if unknown_move > m
+    if unknown_move >= m
       next_highest_unknown_m = unknown_move
       break
     end
@@ -330,12 +330,13 @@ def validate_state(s)
   if difference == 0
     return true
   end
+  puts "next highest unknown m = " + s[:next_highest_unknown_m].to_s
   if difference < s[:next_highest_unknown_m]
-    # puts "INVALID STATE -- r " + r.to_s + " is overfilled (target_sum = " + s[:target_sum].to_s + ")" #NICE TO HAVE
+    puts "INVALID STATE -- r " + r.to_s + " is overfilled (target_sum = " + s[:target_sum].to_s + ", difference = " + difference.to_s + ")" #NICE TO HAVE
     return false # r is overfilled
   end
   if difference > sum_of_greater_unknown_ms
-    # puts "INVALID STATE -- r " + r.to_s + " is underfilled (target_sum = " + s[:target_sum].to_s + ")" #NICE TO HAVE
+    puts "INVALID STATE -- r " + r.to_s + " is underfilled (target_sum = " + s[:target_sum].to_s + ", difference = " + difference.to_s + ")" #NICE TO HAVE
     return false # r is underfilled
   end
   return true
@@ -361,14 +362,14 @@ end
 # Modifies relevant state variables based on the state's current :prospective_move.
 # Returns nothing as it is directly modifiying the state metadata object.
 def apply_move(s)
-  # puts "\nApplying move..." #NICE TO HAVE
+  puts "\nApplying move..." #NICE TO HAVE
   s[:moves][s[:prospective_move][:y]][s[:prospective_move][:x]] = s[:m]
   derive_moves_metadata(s)
 end
 
 # Inverse of the apply_move(s) method defined above.
 def undo_move(s)
-  # puts "Undoing move..." #NICE TO HAVE
+  puts "Undoing move..." #NICE TO HAVE
   if s[:m] == -1
     s[:m] = s[:num_moves]
   else
@@ -401,13 +402,26 @@ def get_adjacent_cells(xi, yi, s)
   return adjacent_cells
 end
 
+def get_all_cells(s)
+  adjacent_cells = []
+  x_max = s[:moves][0].length
+  y_max = s[:moves].length
+  for x in 0...x_max
+    for y in 0...y_max
+      adjacent_cells.push({x: x, y: y})
+    end
+  end
+  return adjacent_cells
+end
+
 # Returns an array of {:x, :y} objects which represent possible knight moves from the
 #   position specified by the :prospective_move object contained in the state metadata
 def get_poss_moves_from_prev(s)
   if s[:m] != 1
     return get_adjacent_cells(s[:known_moves][s[:m]-2][:x], s[:known_moves][s[:m]-2][:y], s)
   else
-    return []
+    # return []
+    return get_all_cells(s)
   end
 end
 
@@ -438,6 +452,8 @@ def get_poss_moves_from_next(s)
 end
 
 def get_poss_next_moves(s)
+  # puts "Getting next possible moves..."    #NICE TO HAVE
+  # print_state_data(s)
   next_highest_known_m = 0
   for i in s[:m]...s[:known_moves].length do
     if s[:known_moves][i][:x] != -1
@@ -453,6 +469,8 @@ def get_poss_next_moves(s)
     next_lowest_known_m = s[:m] - 1
     poss_moves_from_prev = get_poss_moves_from_prev(s)
     poss_moves_from_next = get_poss_moves_from_next(s)
+    # puts "poss_moves_from_prev = " + poss_moves_from_prev.to_s
+    # puts "poss_moves_from_next = " + poss_moves_from_next.to_s
     if not poss_moves_from_next.empty?
       if not poss_moves_from_prev.empty?
         poss_moves = poss_moves_from_prev & poss_moves_from_next
@@ -470,7 +488,7 @@ end
 # TODO: Needs to be renamed.
 def recursive_function(solutions, s)
   # puts "BEGINNING RECURSIVE FUNCTION" #NICE TO HAVE
-  # print_board s[:moves] #NICE TO HAVE
+  print_board s[:moves] #NICE TO HAVE
   if not validate_state(s)
     return s
   end
@@ -484,13 +502,13 @@ def recursive_function(solutions, s)
   derive_moves_metadata(s)
   poss_moves = get_poss_next_moves(s)
   while not poss_moves.empty?
-    # puts "poss_moves: " + poss_moves.to_s #NICE TO HAVE
+    puts "poss_moves: " + poss_moves.to_s    #NICE TO HAVE
     s[:prospective_move] = poss_moves.shift()
     s[:prospective_move][:r] = s[:regions][s[:prospective_move][:y]][s[:prospective_move][:x]]
     apply_move(s)
     recursive_function(solutions, s)
     undo_move(s)
-    # print_board s[:moves] #NICE TO HAVE
+    print_board s[:moves] #NICE TO HAVE
   end
   return s
 end
@@ -537,9 +555,9 @@ state_data = initialize_state_data(region_data, moves_data)
 solutions = []
 moves_data[:poss_ms].each do |poss_max_m|
   state_data[:num_moves] = poss_max_m
-  # puts "\n\n————————————————————"               #NICE TO HAVE
-  # puts " New poss_max_m = " + poss_max_m.to_s   #NICE TO HAVE
-  # puts "————————————————————"                   #NICE TO HAVE
+  puts "\n\n————————————————————"               #NICE TO HAVE
+  puts " New poss_max_m = " + poss_max_m.to_s   #NICE TO HAVE
+  puts "————————————————————"                   #NICE TO HAVE
   state_data[:target_sum] = tri(state_data[:num_moves]) / state_data[:r_num_cells].length
   derive_moves_metadata(state_data)
   recursive_function(solutions, state_data)
