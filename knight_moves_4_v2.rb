@@ -34,7 +34,7 @@ end
 # Open input txt file containing grid info
 def read_input_file
   gridfile_name = ARGV[0]
-  puts gridfile_name
+  # puts gridfile_name
   grid_data = File.read(gridfile_name).split
 end
 
@@ -45,10 +45,10 @@ def parse_grid_metadata(grid_data)
   r_end = r_start + y - 1   # r_end   - last line of the input file describing the regions
   m_start = r_end + 1
   m_end = m_start + y - 1
-  puts "r_start = " + r_start.to_s
-  puts "r_end = " + r_end.to_s
-  puts "m_start = " + m_start.to_s
-  puts "m_end = " + m_end.to_s
+  # puts "r_start = " + r_start.to_s #NICE TO HAVE
+  # puts "r_end = " + r_end.to_s #NICE TO HAVE
+  # puts "m_start = " + m_start.to_s #NICE TO HAVE
+  # puts "m_end = " + m_end.to_s #NICE TO HAVE
   grid_metadata = {
     x: x,
     y: y,
@@ -61,7 +61,7 @@ end
 
 # Parse region data from input file based on parsed metadata
 def parse_region_data(gd, gm)
-  puts "Parsing region data..."
+  # puts "Parsing region data..."
   regions = Array.new(gm[:y]) {|e| e = Array.new(gm[:x], -1)}
   r_labels = []
   r_num_cells = []
@@ -78,10 +78,9 @@ def parse_region_data(gd, gm)
     end
   end
   num_regions = r_labels.length
-  puts "num_regions = " + num_regions.to_s
-  puts "r_num_cells = " + r_num_cells.to_s
-  print_board(regions)
-  puts
+  # puts "num_regions = " + num_regions.to_s
+  # puts "r_num_cells = " + r_num_cells.to_s
+  # print_board(regions)    #NICE TO HAVE
   region_data = {
     regions: regions,         # 2D array representing regions
     num_regions: num_regions, # number of different regions
@@ -91,7 +90,7 @@ end
 
 # Parse moves data from input file based on parsed metadata
 def parse_moves_data(gd, gm)
-  puts "Parsing moves data..."
+  # puts "Parsing moves data..."
   max_val = 0
   moves = Array.new(gm[:y]) {|e| e = Array.new(gm[:x], -1)}
   known_moves = Array.new(gm[:x] * gm[:y]) {|e| e = {x: -1, y: -1}}
@@ -110,9 +109,8 @@ def parse_moves_data(gd, gm)
     end
   end
   unknown_moves = [*1..(gm[:x] * gm[:y])] - given_moves
-  puts "max_val = " + max_val.to_s
-  print_board(moves)
-  puts
+  # puts "max_val = " + max_val.to_s      #NICE TO HAVE
+  # print_board(moves)                    #NICE TO HAVE
   moves_data = {
     moves: moves,     # 2D array representing positions of known cell values
     max_val: max_val, # highest known cell value provided in the input file
@@ -135,7 +133,7 @@ def construct_ms_per_r(gm, rd, md)
       end
     end
   end
-  puts "ms_per_r = " + ms_per_r.to_s
+  # puts "ms_per_r = " + ms_per_r.to_s    #NICE TO HAVE
   return ms_per_r
 end
 
@@ -145,7 +143,7 @@ end
 # m = 11, r = 4 is a counterexample in which the sum per region comes out to 16.5,
 #   although this method returns 16 because integers I'm assuming...
 def determine_possible_num_moves(gm, rd, md)
-  puts "Determining possible total moves..."
+  # puts "Determining possible total moves..."    #NICE TO HAVE
   min = [ md[:max_val], rd[:num_regions] * 2 - 1 ].max
   max = gm[:x] * gm[:y]
   poss_ms = []
@@ -154,7 +152,7 @@ def determine_possible_num_moves(gm, rd, md)
       poss_ms.push(i)
     end
   end
-  puts "poss_ms = " + poss_ms.to_s
+  # puts "poss_ms = " + poss_ms.to_s      #NICE TO HAVE
   return poss_ms
 end
 
@@ -333,11 +331,11 @@ def validate_state(s)
     return true
   end
   if difference < s[:next_highest_unknown_m]
-    puts "INVALID STATE -- r " + r.to_s + " is overfilled (target_sum = " + s[:target_sum].to_s + ")"
+    # puts "INVALID STATE -- r " + r.to_s + " is overfilled (target_sum = " + s[:target_sum].to_s + ")" #NICE TO HAVE
     return false # r is overfilled
   end
   if difference > sum_of_greater_unknown_ms
-    puts "INVALID STATE -- r " + r.to_s + " is underfilled (target_sum = " + s[:target_sum].to_s + ")"
+    # puts "INVALID STATE -- r " + r.to_s + " is underfilled (target_sum = " + s[:target_sum].to_s + ")" #NICE TO HAVE
     return false # r is underfilled
   end
   return true
@@ -363,14 +361,14 @@ end
 # Modifies relevant state variables based on the state's current :prospective_move.
 # Returns nothing as it is directly modifiying the state metadata object.
 def apply_move(s)
-  puts "\nApplying move..."
+  # puts "\nApplying move..." #NICE TO HAVE
   s[:moves][s[:prospective_move][:y]][s[:prospective_move][:x]] = s[:m]
   derive_moves_metadata(s)
 end
 
 # Inverse of the apply_move(s) method defined above.
 def undo_move(s)
-  puts "Undoing move..." #NICE TO HAVE
+  # puts "Undoing move..." #NICE TO HAVE
   if s[:m] == -1
     s[:m] = s[:num_moves]
   else
@@ -470,36 +468,29 @@ end
 
 # Recursive function that ultimately returns a solved version of the state.
 # TODO: Needs to be renamed.
-def recursive_function(solutions, s, d)
+def recursive_function(solutions, s)
   # puts "BEGINNING RECURSIVE FUNCTION" #NICE TO HAVE
-  print_board s[:moves]
+  # print_board s[:moves] #NICE TO HAVE
   if not validate_state(s)
     return s
   end
   if check_solved(s)
     s[:solved] = true
-    puts "A solution has been found."
-    print_state_data(s)
+    # puts "A solution has been found."   #NICE TO HAVE
+    # print_state_data(s) #NICE TO HAVE
     solutions.push(deep_copy_solution(s[:moves]))
     return solutions
   end
-  # PROBLEM: Even when we've found the solution, it will still apply a move,
-  #   which results in a weird -1 showing up in moves and not being undone properly... !!!***
-  derive_moves_metadata(s) # CHRIS -- Not so sure about this...
+  derive_moves_metadata(s)
   poss_moves = get_poss_next_moves(s)
   while not poss_moves.empty?
-    puts "depth = " + d.to_s
-    puts "poss_moves: " + poss_moves.to_s #NICE TO HAVE
+    # puts "poss_moves: " + poss_moves.to_s #NICE TO HAVE
     s[:prospective_move] = poss_moves.shift()
     s[:prospective_move][:r] = s[:regions][s[:prospective_move][:y]][s[:prospective_move][:x]]
     apply_move(s)
-    recursive_function(solutions, s, d+1)
-    # next_state = recursive_function(solutions, s)
-    # if next_state[:solved]
-    #   return next_state
-    # end
+    recursive_function(solutions, s)
     undo_move(s)
-    print_board s[:moves]
+    # print_board s[:moves] #NICE TO HAVE
   end
   return s
 end
@@ -542,57 +533,25 @@ moves_data = parse_moves_data(grid_data, grid_metadata)
 region_data[:ms_per_r] = construct_ms_per_r(grid_metadata, region_data, moves_data)
 moves_data[:poss_ms] = determine_possible_num_moves(grid_metadata, region_data, moves_data)
 state_data = initialize_state_data(region_data, moves_data)
-print_state_data(state_data)
-# poss_moves = first_moves(state_data)
-# puts "\nposs_moves: " + poss_moves.to_s
-
-# CHRIS -- HARD-CODING THE BELOW FOR TESTING PURPOSES !!!***
-# It's meant to go with grid_input_test_12.txt
-# state_data[:num_moves] = 9
-# poss_moves.each do |poss_move|
-#   state_data[:prospective_move][:x] = poss_move[:x]
-#   state_data[:prospective_move][:y] = poss_move[:y]
-#   state_data[:prospective_move][:r] = state_data[:regions][state_data[:prospective_move][:y]][state_data[:prospective_move][:x]]
-#   state_data[:target_sum] = tri(state_data[:num_moves]) / state_data[:r_num_cells].length
-#   derive_moves_metadata(state_data)
-#   recursive_function(state_data)
-# end
+# print_state_data(state_data)    #NICE TO HAVE
 solutions = []
-# initial_moves = deep_copy_solution(state_data[:moves])
 moves_data[:poss_ms].each do |poss_max_m|
   state_data[:num_moves] = poss_max_m
-  puts "\n\n————————————————————"
-  puts " New poss_max_m = " + poss_max_m.to_s
-  puts "————————————————————"
+  # puts "\n\n————————————————————"               #NICE TO HAVE
+  # puts " New poss_max_m = " + poss_max_m.to_s   #NICE TO HAVE
+  # puts "————————————————————"                   #NICE TO HAVE
   state_data[:target_sum] = tri(state_data[:num_moves]) / state_data[:r_num_cells].length
   derive_moves_metadata(state_data)
-  recursive_function(solutions, state_data, 0)
+  recursive_function(solutions, state_data)
 end
-# moves_data[:poss_ms].each do |poss_max_m|
-#   state_data[:num_moves] = poss_max_m
-#   puts "\n\n————————————————————"
-#   puts " New poss_max_m = " + poss_max_m.to_s
-#   puts "————————————————————"
-#   poss_moves.each do |poss_move|
-#     puts "\n\n———————————————————"
-#     puts " New poss_move = " + poss_move.to_s
-#     puts "———————————————————"
-#     state_data[:num_moves] = poss_max_m
-#     state_data[:prospective_move][:x] = poss_move[:x]
-#     state_data[:prospective_move][:y] = poss_move[:y]
-#     state_data[:prospective_move][:r] = state_data[:regions][poss_move[:y]][poss_move[:x]]
-#     state_data[:target_sum] = tri(state_data[:num_moves]) / state_data[:r_num_cells].length
-#     derive_moves_metadata(state_data)
-#     recursive_function(solutions, state_data, 0)
-#     # if state_data[:solved]
-#     #   # CHRIS -- This will probably require a deep copy, actually...
-#     #   deep_copy_solution(solutions, state_data[:moves])
-#     # end
-#   end
-# end
+puts "\n ------ SOLUTIONS ------"
 i = 1
 solutions.each do |solution|
   puts "\nPossible solution " + i.to_s + ":"
   print_board(solution)
   i += 1
+end
+if i == 1
+  puts "\nNo possible solutions were found."
+  puts
 end
