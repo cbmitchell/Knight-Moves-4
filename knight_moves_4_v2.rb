@@ -5,10 +5,30 @@ KNIGHT_MOVEMENT = [
 ]
 
 # Print out the board
-def print_board (board)
+def print_board(board)
   board.each do |row|
     puts row.to_s
   end
+end
+
+def print_state_data(s)
+  puts "m: " + s[:m].to_s
+  # puts "r: " + s[:r].to_s
+  puts "moves: "
+  print_board(s[:moves]).to_s
+  puts "num_moves: " + s[:num_moves].to_s
+  puts "known_moves: " + s[:known_moves].to_s
+  puts "given_moves: " + s[:given_moves].to_s
+  puts "unknown_moves: " + s[:unknown_moves].to_s
+  puts "next_highest_known_m: " + s[:next_highest_known_m].to_s
+  puts "next_highest_unknown_m: " + s[:next_highest_unknown_m].to_s
+  puts "regions: "
+  print_board(s[:regions])
+  puts "r_num_cells: " + s[:r_num_cells].to_s
+  puts "r_known_cells: " + s[:r_known_cells].to_s
+  puts "target_sum: " + s[:target_sum].to_s
+  puts "sum_of_greater_unknown_ms: " + s[:sum_of_greater_unknown_ms].to_s
+  puts "solved: " + s[:solved].to_s
 end
 
 # Open input txt file containing grid info
@@ -19,7 +39,6 @@ def read_input_file
 end
 
 def parse_grid_metadata(grid_data)
-  # CHRIS -- Screw it. I'm just going to assume the order of the stuff in the file.
   x = grid_data[0].strip.to_i
   y = grid_data[1].strip.to_i
   r_start = 2               # r_start - first line of the input file describing the regions
@@ -75,21 +94,35 @@ def parse_moves_data(gd, gm)
   puts "Parsing moves data..."
   max_val = 0
   moves = Array.new(gm[:y]) {|e| e = Array.new(gm[:x], -1)}
+  # In theory, I should be doing this known_moves thing in a later function
+  #   since it's technically derived. But for now this is simpler. I can try
+  #   refactoring that later when I'm not trying to balance a ton of things in
+  #   my head all at once...
+  known_moves = Array.new(gm[:x] * gm[:y]) {|e| e = {x: -1, y: -1}}
+  given_moves = []
   for i in gm[:m_start]..gm[:m_end] do
     cells = gd[i].strip.split(',')
     for j in 0...gm[:x] do
       moves[i-1-gm[:r_end]][j] = cells[j].to_i
+      if cells[j].to_i > 0
+        known_moves[cells[j].to_i-1] = {x: j, y: i}
+        given_moves.push(cells[j].to_i)
+      end
       if cells[j].to_i > max_val
         max_val = cells[j].to_i
       end
     end
   end
+  unknown_moves = [*1..(gm[:x] * gm[:y])] - given_moves
   puts "max_val = " + max_val.to_s
   print_board(moves)
   puts
   moves_data = {
     moves: moves,     # 2D array representing positions of known cell values
-    max_val: max_val  # highest known cell value provided in the input file
+    max_val: max_val, # highest known cell value provided in the input file
+    known_moves: known_moves,
+    given_moves: given_moves,
+    unknown_moves: unknown_moves
   }
 end
 
@@ -171,6 +204,11 @@ end
 #     - An integer representing the max value for m
 #     - Based on poss_ms from elsewhere in this file
 #
+#   given_moves: ,
+#     - An integer array containing all the moves known from the input file.
+#     - Used to avoid undoing a given move when using undo_move.
+#     - Not derived, and does not change over the course of the program.
+#
 #   known_moves: ,
 #     - An array in which each element is a two-key object of the form, {:x, :y}.
 #     - Each element is initialized to {x: -1, y: -1}
@@ -194,6 +232,7 @@ end
 #
 #   regions: ,
 #     - Same as the original regions metadata
+#     - Never changes
 #
 #   r_num_cells: ,
 #     - An array of integers where each integer represents the total number of
@@ -237,6 +276,15 @@ end
 # ———————————————————— # ———————————————————— # ————————————————————
 # ———————————————————— # ———————————————————— # ————————————————————
 
+# Find potential first move
+def first_moves(s)
+  # m = s[:unknown_moves][0]     # Find first unknown move
+  s[:m] = s[:unknown_moves][0]
+  poss_moves = get_poss_next_moves(s)
+  return poss_moves
+end
+
+
 def validate_state(s)
   r_known_cells = s[:r_known_cells][s[:prospective_move][:r]]
   r_num_cells = s[:r_num_cells][s[:prospective_move][:r]]
@@ -272,7 +320,7 @@ def derive_state_metadata(s)
   r = s[:regions][s[:prospective_move[s[:y]]]][s[:prospective_move[s[:x]]]]
   target_sum = tri(s[:num_moves]) / s[:r_num_cells].length
   next_highest_known_m = 0
-  for i in s[:m]..s[:known_moves].length do
+  for i in s[:m]...s[:known_moves].length do
     if s[:known_moves][i][:x] != -1
       next_highest_known_m = i + 1
     end
@@ -290,29 +338,13 @@ def derive_state_metadata(s)
   for i in 0...( s[:r_num_cells][r] - s[:known_moves][r].length ) do #this range operator might break !!!***
     sum_of_greater_unknown_ms += s[:unknown_moves][i] # Pretty sure this will never go out of bounds...
   end
-  s[:prospective_move][:r] = r
+  # s[:prospective_move][:r] = r #???
   s[:target_sum] = target_sum
   s[:next_highest_known_m] = next_highest_known_m
   s[:next_highest_unknown_m] = next_highest_unknown_m
   s[:sum_of_greater_unknown_ms] = sum_of_greater_unknown_ms
 end
 
-# CHRIS -- Okay, so I just realized that this whole apply_move undo_move thing
-#   isn't going to work unless I retain a history of past states.
-# I mean, these would kindof work, but only for going back ONE step.
-# Anything beyond that wouldn't actually work.
-# So yeah, I'm going to need to implement a way to retain state history...
-# Okay, wait, so doing state history would require me to do a deep copy of the
-#   state, which is the whole reason I used this stupid apply/undo system - to
-#   avoid needing to figure out how to do a deep copy.
-# Wait, I have an idea. I can still use the apply/undo system, but I'll retain
-#   a list of :prospective_moves that will serve as deltas. It's kindof like how
-#   git doesn't actually save a copy of the state of a repo at every point
-#   throughout its history but instead uses deltas combined with the current ver.
-# Actually, I probably don't even need to do that. Given how I'm doing this, I
-#   can always assume that the last move made was the next-lowest m value, which
-#   can be used to completely derive everything else. TODO ***
-#
 # Separate note from the above:
 # I may also consider splitting up my state metadata object into two different objects:
 #   * state_data
@@ -332,12 +364,25 @@ def apply_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
   derive_state_metadata(s)
 end
 
+# Modifies relevant state variables based on the state's current :prospective_move.
+# Returns nothing as it is directly modifiying the state metadata object.
+def apply_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
+  s[:moves][s[:prospective_move][:y]][s[:prospective_move][:x]] = s[:m]
+  s[:m] = s[:m] + 1 # Not ENTIRELY sure about this, but we'll see how it goes...
+  derive_state_metadata(s)
+end
+
 # Inverse of the apply_move(s) method defined above.
+# We'll need to make sure that this function doesn't undo any
+#   pre-given moves. This will require a new state variable.
 def undo_move(s) #TODO -- DOUBLE-CHECK THE LOGIC FOR THIS FUNCTION!!!***
   s[:m] = s[:m] - 1
+  while s[:given_moves].include? s[:m] do # Make sure we're not undoing a given move
+    s[:m] = s[:m] -1
+  end
   xy = s[:known_moves][s[:m]-1]
   s[:known_moves][s[:m]-1] = {x: -1, y: -1}
-  r = regions[xy[:y]][xy[:x]]
+  r = s[:regions[xy[:y]][xy[:x]]]
   s[:moves][xy[:y]][xy[:x]] = 0
   s[:r_known_cells][r].pop()
   s[:unknown_moves] = s[:unknown_moves].push(m).sort.reverse()
@@ -352,12 +397,10 @@ end
 # Returns an array of {:x, :y} objects which represent open positions on the board
 #   that are one knight move away from the position of move m.
 # If m is not already known, then this function will return an empty array.
-def get_adjacent_cells(m, s)
+def get_adjacent_cells(xi, yi, s)
   adjacent_cells = []
   x_max = s[:moves][0].length
   y_max = s[:moves].length
-  xi = s[][:x]
-  yi = s[:prospective_move][:y]
   KNIGHT_MOVEMENT.each do |move|
     x_new = xi + move[0]
     y_new = yi + move[1]
@@ -371,24 +414,98 @@ end
 
 # Returns an array of {:x, :y} objects which represent possible knight moves from the
 #   position specified by the :prospective_move object contained in the state metadata
-def get_poss_moves_from_prev()
+def get_poss_moves_from_prev(s)
+  return get_adjacent_cells(s[:known_moves][s[:m]-1][:x], s[:known_moves][s[:m]-1][:y], s)
+end
+
+def get_poss_moves_from_next(s)
+  hi_m = s[:next_highest_known_m]
+  if hi_m == 0
+    return []
+  end
+  move_queue_1 = []
+  move_queue_2 = []
+  i = 0
+  move_queue_1.push(s[:known_moves][hi_m-1])
+  while i < hi_m - s[:m]
+    while not move_queue_1.empty?
+      curr_move = move_queue_1.shift()
+      new_moves = get_adjacent_cells(curr_move[:x], curr_move[:y], s)
+      new_moves.each do |new_move|
+        if not move_queue_2.include? new_move
+          move_queue_2.push(new_move)
+        end
+      end
+    end
+    move_queue_1.concat(move_queue_2)
+    move_queue_2.clear
+    i += 1
+  end
+  return move_queue_1
+end
+
+# CHRIS -- This is a weird one.
+# It's the recursive_function without the initial validation and solution check.
+def first_recursion(s)
 
 end
 
+def get_poss_next_moves(s)
+  for i in s[:m]...s[:known_moves].length do
+    puts "i = " + i.to_s
+    puts s[:known_moves][i]
+    if s[:known_moves][i][:x] != -1
+      next_highest_known_m = i + 1
+    end
+  end
+  s[:next_highest_known_m] = next_highest_known_m
+  puts "next_highest_known_m = " + next_highest_known_m.to_s
+  poss_moves = []
+  if s[:known_moves][s[:m]-1][:x] != -1     # If the current move is already known...
+    poss_moves = [s[:known_moves][s[:m]-1]] # ...only possible next move is that move.
+  else
+    next_lowest_known_m = s[:m] - 1
+    poss_moves_from_prev = get_poss_moves_from_prev(s)
+    poss_moves_from_next = get_poss_moves_from_next(s)
+    if not poss_moves_from_next.empty?
+      poss_moves = poss_moves_from_prev & poss_moves_from_next
+    else
+      poss_moves = poss_moves_from_prev
+    end
+  end
+  return poss_moves
+end
+
+# Recursive function that ultimately returns a solved version of the state.
+# TODO: Needs to be renamed.
 def recursive_function(s)
+  puts "BEGINNING RECURSIVE FUNCTION"
   if not validate_state(s)
     return s
   end
   if check_solved(s)
     s[:solved] = true
+    puts "A solution has been found."
     return s
   end
-  # derive_state_metadata(s)
-  m = s[:m]
-  next_lowest_known_m = s[:m] - 1
-  poss_moves_from_prev = get_poss_moves_from_prev(s) #!!!
-  poss_moves_from_next = get_poss_moves_from_next(s) #!!!
-  poss_moves = poss_moves_from_prev & poss_moves_from_next
+  derive_state_metadata(s) # CHRIS -- Not so sure about this...
+  # # TODO:  Have logic to initially insert a prospective move or have the
+  #          derive_state_metadata function not rely on it.
+  print_state_data(s)
+  # ------ get_poss_next_moves ------
+  poss_moves = []
+  if s[:known_moves][s[:m]-1][:x] != -1     # If the current move is already known...
+    poss_moves = [s[:known_moves][s[:m]-1]] # ...only possible next move is that move.
+  else
+    next_lowest_known_m = s[:m] - 1
+    poss_moves_from_prev = get_poss_moves_from_prev(s)
+    poss_moves_from_next = get_poss_moves_from_next(s)
+    if not poss_moves_from_next.empty?
+      poss_moves = poss_moves_from_prev & poss_moves_from_next
+    else
+      poss_moves = poss_moves_from_prev
+    end
+  end
   while not poss_moves.empty?
     s[:prospective_move] = poss_moves.shift()
     apply_move(s)
@@ -584,6 +701,27 @@ def validate_partition_regions(partition, r_num_cells)
   return true
 end
 
+def initialize_state_data(rd, md)
+  state = {
+    m: 1,
+    moves: md[:moves],
+    known_moves: md[:known_moves],
+    given_moves: md[:given_moves],
+    unknown_moves: md[:unknown_moves],
+    poss_num_moves: md[:poss_ms],
+    r: rd[:num_regions],
+    regions: rd[:regions],
+    r_num_cells: rd[:r_num_cells],
+    r_known_cells: rd[:ms_per_r],
+    prospective_move: {
+      x: -1,
+      y: -1,
+      r: -1
+    },
+    solved: false
+  }
+end
+
 # ——————————————————————————————————————————————————————————————————————————————
 
 grid_data = read_input_file
@@ -592,19 +730,25 @@ region_data = parse_region_data(grid_data, grid_metadata)
 moves_data = parse_moves_data(grid_data, grid_metadata)
 region_data[:ms_per_r] = construct_ms_per_r(grid_metadata, region_data, moves_data)
 moves_data[:poss_ms] = determine_possible_num_moves(grid_metadata, region_data, moves_data)
-
-root_partitions = []
-moves_data[:poss_ms].each do |m|
-  root_partition = calc_root_partition(region_data[:num_regions], m)
-  puts "Root partition for " + m.to_s + " moves: " + root_partition.to_s
-  root_partitions.push(root_partition)
+state_data = initialize_state_data(region_data, moves_data)
+print_state_data(state_data)
+poss_moves = get_poss_next_moves(state_data)
+puts "poss_moves: " + poss_moves.to_s
+moves_data[:poss_ms].each do |poss_max_m|
+  state_data[:num_moves] = poss_max_m
+  poss_moves.each do |poss_move|
+    state_data[:prospective_move][:x] = poss_move[:x]
+    state_data[:prospective_move][:y] = poss_move[:y]
+    print_state_data(state_data)
+    recursive_function(state_data)
+    print_state_data(state_data)
+    print_board(state_data[:moves])
+  end
 end
 
-all_poss_partitions = []
-for i in 0...root_partitions.length do
-  all_poss_partitions.push(calc_all_poss_partitions(root_partitions[i], region_data, moves_data))
-end
-puts "\nall_poss_partitions = "
-all_poss_partitions.each do |m_poss_partitions|
-  print_board(m_poss_partitions)
-end
+
+# puts "Printing initial state data:"
+# print_state_data(state_data)
+# derive_state_metadata(state_data)
+# puts "Printing newly-derived state data:"
+# print_state_data(state_data)
