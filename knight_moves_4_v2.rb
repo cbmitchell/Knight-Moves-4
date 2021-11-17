@@ -161,93 +161,6 @@ def tri(m)
   tri_m = (m * (m + 1)) / 2
 end
 
-# ———————————————————— # ———————————————————— # ————————————————————
-# ———————————————————— # ———— PSEUDOCODE ———— # ————————————————————
-# ———————————————————— # ———————————————————— # ————————————————————
-# state = {
-#   m: ,
-#     - An integer representing the current move number
-#
-#   moves: ,
-#     - A 2D array of integers representing known moves on the board
-#
-#   num_moves: ,
-#     - An integer representing the max value for m
-#     - Based on poss_ms from elsewhere in this file
-#
-#   given_moves: ,
-#     - An integer array containing all the moves known from the input file.
-#     - Used to avoid undoing a given move when using undo_move.
-#     - Not derived, and does not change over the course of the program.
-#
-#   known_moves: ,
-#     - An array in which each element is a two-key object of the form, {:x, :y}.
-#     - Each element is initialized to {x: -1, y: -1}
-#     - An element is assigned another value when the move associated with that
-#       element's index becomes known.
-#
-#   unknown_moves: ,
-#     - An array of integers, where each integer represents an unknown move
-#     - Initialized to have all moves
-#     - The integers are listed in descending order, starting with num_moves
-#
-#   next_highest_known_m: ,
-#     -
-#
-#   next_highest_unknown_m: ,
-#     -
-#
-#   prospective_move: ,
-#     - The x & y coordinates that m will be placed in
-#     - Also the r
-#
-#   regions: ,
-#     - Same as the original regions metadata
-#     - Never changes
-#
-#   r_num_cells: ,
-#     - An array of integers where each integer represents the total number of
-#       cells available in the region associated with the integer's index.
-#
-#   r_known_cells: ,
-#     - A 2D array where each element is an array containing integers representing
-#       moves known to be made in the region associated with the array's index.
-#
-#   target_sum: ,
-#     - The value that all regions should ultimately total to
-#
-#   sum_of_greater_unknown_ms: ,
-#     - Derived from m & unknown_moves
-#
-#   solved: false,
-#     - A boolean representing whether or not the state is considered solved
-# }
-# ———————————————————— # ———————————————————— # ————————————————————
-#
-# recursive_function(current_state) {
-#   if not validate(current_state) {
-#     return current_state
-#   }
-#   if check_solved(current_state) {
-#     current_state[:solved] = true
-#     return current_state
-#   }
-#   poss_moves = get_poss_moves(...)
-#   while not poss_moves.empty? {
-#     prospective_move = poss_moves.shift()
-#     next_state = recursive_function(prospective_move)
-#     if next_state[:solved] {
-#       return next_state
-#     }
-#   }
-#   return current_state
-# }
-#
-# ———————————————————— # ———————————————————— # ————————————————————
-# ———————————————————— # ———————————————————— # ————————————————————
-# ———————————————————— # ———————————————————— # ————————————————————
-
-
 # Doing everything from scratch just based on moves, regions, & num_moves.
 # Not the most efficient way, but a pretty easy to understand way, so it will
 #   serve as a proof of concept for the time being and then be refined later.
@@ -330,13 +243,12 @@ def validate_state(s)
   if difference == 0
     return true
   end
-  puts "next highest unknown m = " + s[:next_highest_unknown_m].to_s
   if difference < s[:next_highest_unknown_m]
-    puts "INVALID STATE -- r " + r.to_s + " is overfilled (target_sum = " + s[:target_sum].to_s + ", difference = " + difference.to_s + ")" #NICE TO HAVE
+    # puts "INVALID STATE -- r " + r.to_s + " is overfilled (target_sum = " + s[:target_sum].to_s + ", difference = " + difference.to_s + ")" #NICE TO HAVE
     return false # r is overfilled
   end
   if difference > sum_of_greater_unknown_ms
-    puts "INVALID STATE -- r " + r.to_s + " is underfilled (target_sum = " + s[:target_sum].to_s + ", difference = " + difference.to_s + ")" #NICE TO HAVE
+    # puts "INVALID STATE -- r " + r.to_s + " is underfilled (target_sum = " + s[:target_sum].to_s + ", difference = " + difference.to_s + ")" #NICE TO HAVE
     return false # r is underfilled
   end
   return true
@@ -359,17 +271,27 @@ def check_solved(s)
   return true
 end
 
+# TODO: The apply_move & undo_move functions can absolutely be optimized.
+#       Right now, they modify s[:moves] and then use derive_moves_metadata
+#         to construct the state around that change.
+#       Instead of doing that, we could instead modify things based on what we're
+#         doing instead of completely rebuilding almost the entire state from scratch.
+#       This is the way I was originally trying to do things, but it ended up
+#         being complex enough that it resulted in a bunch of logic bugs, so in
+#         order to get this thing up and running at all to prove that my approach
+#         is even working, I changed it to be this simplified but slower method.
+
 # Modifies relevant state variables based on the state's current :prospective_move.
 # Returns nothing as it is directly modifiying the state metadata object.
 def apply_move(s)
-  puts "\nApplying move..." #NICE TO HAVE
+  # puts "\nApplying move..." #NICE TO HAVE
   s[:moves][s[:prospective_move][:y]][s[:prospective_move][:x]] = s[:m]
   derive_moves_metadata(s)
 end
 
 # Inverse of the apply_move(s) method defined above.
 def undo_move(s)
-  puts "Undoing move..." #NICE TO HAVE
+  # puts "Undoing move..." #NICE TO HAVE
   if s[:m] == -1
     s[:m] = s[:num_moves]
   else
@@ -420,11 +342,12 @@ def get_poss_moves_from_prev(s)
   if s[:m] != 1
     return get_adjacent_cells(s[:known_moves][s[:m]-2][:x], s[:known_moves][s[:m]-2][:y], s)
   else
-    # return []
     return get_all_cells(s)
   end
 end
 
+# Returns an array of {x: , y: } object which each represent a move that would
+#   be legal for move m based on the position of the next highest known move.
 def get_poss_moves_from_next(s)
   hi_m = s[:next_highest_known_m]
   if hi_m == 0
@@ -451,6 +374,33 @@ def get_poss_moves_from_next(s)
   return move_queue_1
 end
 
+# TODO: Optimize by being more meticulous about determining the possible values
+#       for num_moves. Right now, it's being done purely based on move values.
+#       We might run something using the get_poss_moves function to determine
+#       how many moves could ACTUALLY fit on the board.
+#       For example, a 4x4 board can't actually fit 16 moves (or even 15 for
+#       that matter), although we still look for solutions with that, which
+#       ends up taking a bunch of time even though we could easily disqualify
+#       all those from the get-go with a little pre-processing.
+
+# TODO: Make a function that goes through the given moves and finds any other
+#       moves that can be labeled as given because they have only one possible
+#       position based on other given moves.
+#
+#       This can be done as its own phase separate from the recursive_function.
+#       It'll be a sort of pre-processing to help speed things up overall.
+#
+#       Something else to consider is doing this using values as well as position.
+#       Granted, this would need to be done (and undone) every time we have
+#         to do a new num_moves.
+#
+#       Wait. This is inherently flawed. It will cause the program to undo more
+#         moves than it's supposed to since it'll skip one of the moves it was
+#         originally meant to undo.
+
+# Returns an array of {x: , y: } object which each represent a move that would
+#   be legal for move m based on BOTH the position of the next highest known
+#   move and the previous move.
 def get_poss_next_moves(s)
   # puts "Getting next possible moves..."    #NICE TO HAVE
   # print_state_data(s)
@@ -488,27 +438,40 @@ end
 # TODO: Needs to be renamed.
 def recursive_function(solutions, s)
   # puts "BEGINNING RECURSIVE FUNCTION" #NICE TO HAVE
-  print_board s[:moves] #NICE TO HAVE
+  # print_board s[:moves] #NICE TO HAVE
   if not validate_state(s)
-    return s
+    return false
   end
   if check_solved(s)
     s[:solved] = true
     # puts "A solution has been found."   #NICE TO HAVE
     # print_state_data(s) #NICE TO HAVE
     solutions.push(deep_copy_solution(s[:moves]))
-    return solutions
+    return true
   end
   derive_moves_metadata(s)
   poss_moves = get_poss_next_moves(s)
+  # This given thing actually doesn't work yet.
+  # I need to make sure that the given thing only gets triggered when the two
+  #   moves that this one is based on are ALSO given.
+  # Iow, given moves can only come from pre-existing given moves.
+  # TODO: Get the below portion of code figured out.
+  #       Read the above TODO comment about this for more information and
+  #         possible alternative approaches to optimizing around given moves.
+  #
+  # if poss_moves.length == 1
+  #   s[:given_moves].push(s[:m])   # THIS LINE NEEDS TO BE TESTED !!!***
+  #   puts "Move " + s[:m].to_s + " has been discovered to be given."
+  #   print_state_data(s)
+  # end
   while not poss_moves.empty?
-    puts "poss_moves: " + poss_moves.to_s    #NICE TO HAVE
+    # puts "poss_moves: " + poss_moves.to_s    #NICE TO HAVE
     s[:prospective_move] = poss_moves.shift()
     s[:prospective_move][:r] = s[:regions][s[:prospective_move][:y]][s[:prospective_move][:x]]
     apply_move(s)
     recursive_function(solutions, s)
     undo_move(s)
-    print_board s[:moves] #NICE TO HAVE
+    # print_board s[:moves] #NICE TO HAVE
   end
   return s
 end
@@ -571,5 +534,5 @@ solutions.each do |solution|
 end
 if i == 1
   puts "\nNo possible solutions were found."
-  puts
 end
+puts

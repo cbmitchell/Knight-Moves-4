@@ -1,5 +1,7 @@
 #!/usr/bin/ruby
 
+puts "66 / 4 = " + (66/4).to_s
+
 m = ARGV[0].to_i
 r = ARGV[1]
 tri_m = (m * (m + 1)) / 2
